@@ -28,9 +28,9 @@ CORS(app)
 
 # --- Constants ---
 REQUEST_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5.0 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
-REQUEST_TIMEOUT = 30 # Increased timeout for scraper APIs to 30 seconds
+REQUEST_TIMEOUT = 60 
 MAX_CONTENT_SIZE = 500000
 
 # --- Utility Functions (These are unchanged) ---
@@ -111,7 +111,10 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
     if not organic_results:
         return {"error": "Could not parse organic results from Google HTML. The page structure might have changed."}
 
-    competitor_urls = [res["link"] for res in organic_results[:10]]
+    # *** THIS IS THE FIX ***
+    # Analyzing top 5 instead of 10 to prevent server timeouts on free plans.
+    competitor_urls = [res["link"] for res in organic_results[:5]]
+    print(f"Found {len(competitor_urls)} competitors to analyze.")
     competitor_reports = []
 
     for url in competitor_urls:
