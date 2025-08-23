@@ -10,20 +10,10 @@ from urllib.parse import urlparse, urljoin, urlencode
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from collections import OrderedDict, Counter
-import spacy
+# spaCy has been removed to reduce memory usage
 
 # --- Basic Setup ---
 app = Flask(__name__)
-
-# --- Load the spaCy model once on startup ---
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    print("Downloading spaCy model... (This will happen only once on Render during build)")
-    from spacy.cli import download
-    download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
-
 CORS(app)
 
 # --- Constants ---
@@ -33,7 +23,7 @@ REQUEST_HEADERS = {
 REQUEST_TIMEOUT = 60 
 MAX_CONTENT_SIZE = 500000
 
-# --- Utility Functions (These are unchanged) ---
+# --- Utility Functions (spaCy functions removed) ---
 
 def clean_text(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9\s]", " ", text or "")
@@ -45,30 +35,6 @@ def extract_keywords(text: str, top_n: int = 20) -> dict:
     words = [w for w in words if w not in stopwords and len(w) > 2]
     freq = Counter(words)
     return dict(freq.most_common(top_n))
-
-def analyze_semantic_clusters(text: str) -> dict:
-    doc = nlp(text[:100000])
-    key_phrases = [chunk.text.lower() for chunk in doc.noun_chunks if len(chunk.text.split()) > 1]
-    if not key_phrases:
-        return {"message": "Not enough key phrases found for semantic analysis."}
-
-    phrase_counts = Counter(key_phrases)
-    main_phrases = [phrase for phrase, count in phrase_counts.most_common(10)]
-    main_phrase_docs = {phrase: nlp(phrase) for phrase in main_phrases}
-
-    clusters = OrderedDict()
-    all_phrase_docs = [nlp(phrase) for phrase in set(key_phrases)]
-
-    for phrase, doc1 in main_phrase_docs.items():
-        if not doc1.has_vector: continue
-        related = []
-        for doc2 in all_phrase_docs:
-            if doc1.text == doc2.text or not doc2.has_vector: continue
-            if doc1.similarity(doc2) > 0.70:
-                related.append(doc2.text)
-        if related:
-            clusters[phrase] = list(set(related))
-    return clusters if clusters else {"message": "No strong semantic clusters identified."}
 
 def build_single_page_report(url: str, soup: BeautifulSoup, response_status: int) -> OrderedDict:
     report = OrderedDict()
@@ -83,10 +49,7 @@ def build_single_page_report(url: str, soup: BeautifulSoup, response_status: int
     total_words = len(full_text.split())
     report["Word Count"] = total_words
     report["Top Keywords"] = extract_keywords(full_text)
-    try:
-        report["Semantic Keyword Clusters"] = analyze_semantic_clusters(full_text)
-    except Exception as e:
-        report["Semantic Keyword Clusters"] = {"error": f"Semantic analysis failed: {str(e)}"}
+    # Semantic analysis has been removed
     return report
 
 # --- Core SERP Analysis Function for ScraperAPI ---
@@ -111,8 +74,6 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
     if not organic_results:
         return {"error": "Could not parse organic results from Google HTML. The page structure might have changed."}
 
-    # *** THIS IS THE FIX ***
-    # Analyzing top 5 instead of 10 to prevent server timeouts on free plans.
     competitor_urls = [res["link"] for res in organic_results[:5]]
     print(f"Found {len(competitor_urls)} competitors to analyze.")
     competitor_reports = []
