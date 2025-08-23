@@ -4,6 +4,7 @@ import os
 import re
 import json
 import requests
+import traceback # Import traceback for detailed error logging
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin, urlencode
 from flask import Flask, request, jsonify
@@ -29,7 +30,7 @@ CORS(app)
 REQUEST_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
-REQUEST_TIMEOUT = 20 # Increased timeout for scraper APIs
+REQUEST_TIMEOUT = 30 # Increased timeout for scraper APIs to 30 seconds
 MAX_CONTENT_SIZE = 500000
 
 # --- Utility Functions (These are unchanged) ---
@@ -88,7 +89,7 @@ def build_single_page_report(url: str, soup: BeautifulSoup, response_status: int
         report["Semantic Keyword Clusters"] = {"error": f"Semantic analysis failed: {str(e)}"}
     return report
 
-# --- CORRECTED Core SERP Analysis Function for ScraperAPI ---
+# --- Core SERP Analysis Function for ScraperAPI ---
 
 def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -> dict:
     print(f"Fetching SERP for keyword: {keyword} using ScraperAPI")
@@ -102,9 +103,6 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
     soup = BeautifulSoup(response.text, "html.parser")
     
     organic_results = []
-    # *** THIS IS THE FIX ***
-    # Using a more specific and stable selector to find the search result blocks.
-    # Google often uses class names like 'tF2Cxc' or 'g' for these blocks.
     for result_div in soup.select("div.g, div.tF2Cxc"):
         link_tag = result_div.find("a")
         if link_tag and link_tag.get('href') and link_tag.get('href').startswith('http'):
@@ -159,7 +157,7 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
         "competitor_benchmarks": benchmarks
     }
 
-# --- API Routes (Using SCRAPERAPI_KEY) ---
+# --- API Routes (with Improved Error Handling) ---
 
 @app.route("/")
 def home():
@@ -180,11 +178,22 @@ def analyze_serp_endpoint():
     try:
         result = analyze_serp_competitors(keyword, user_url, scraperapi_key)
         if "error" in result:
+            print(f"Application error: {result['error']}")
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "data": result})
+    
+    except requests.exceptions.Timeout:
+        print("A request to ScraperAPI timed out.")
+        return jsonify({"success": False, "error": "The request timed out while trying to fetch data. The target site might be slow."}), 504
+        
     except Exception as e:
-        print(f"Unexpected error in /analyze-serp: {str(e)}")
-        return jsonify({"success": False, "error": "An unexpected server error occurred."}), 500
+        # Log the full error traceback for better debugging on Render
+        print(f"--- UNEXPECTED SERVER ERROR ---")
+        print(f"Exception Type: {type(e).__name__}")
+        print(f"Exception Details: {str(e)}")
+        traceback.print_exc()
+        print(f"--- END OF ERROR ---")
+        return jsonify({"success": False, "error": "An unexpected server error occurred. The issue has been logged."}), 500
 
 if __name__ == "__main__":
     # This part is for local testing and won't run on Render
