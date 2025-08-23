@@ -102,8 +102,10 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
     soup = BeautifulSoup(response.text, "html.parser")
     
     organic_results = []
-    # This selector targets the main organic result links on Google
-    for result_div in soup.select("div.g"):
+    # *** THIS IS THE FIX ***
+    # Using a more specific and stable selector to find the search result blocks.
+    # Google often uses class names like 'tF2Cxc' or 'g' for these blocks.
+    for result_div in soup.select("div.g, div.tF2Cxc"):
         link_tag = result_div.find("a")
         if link_tag and link_tag.get('href') and link_tag.get('href').startswith('http'):
             organic_results.append({'link': link_tag.get('href')})
