@@ -183,7 +183,7 @@ def analyze_serp_endpoint():
         return jsonify({"success": False, "error": "An unexpected server error occurred. The issue has been logged."}), 500
 
 
-# ✅ Proper production entrypoint
+# ✅ Production entrypoint (Fly.io will use Gunicorn in Dockerfile)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
