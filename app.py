@@ -14,37 +14,49 @@ CORS(app)
 
 # --- Constants ---
 REQUEST_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/91.0.4472.124 Safari/537.36"
 }
 REQUEST_TIMEOUT = 60
 MAX_CONTENT_SIZE = 500000
+
 
 # --- Utility Functions ---
 def clean_text(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9\s]", " ", text or "")
     return text.lower()
 
+
 def extract_keywords(text: str, top_n: int = 20) -> dict:
-    stopwords = {"the", "and", "to", "of", "a", "in", "for", "is", "on", "with", "that", "as", "by", "it", "are"}
+    stopwords = {
+        "the", "and", "to", "of", "a", "in", "for", "is",
+        "on", "with", "that", "as", "by", "it", "are"
+    }
     words = clean_text(text).split()
     words = [w for w in words if w not in stopwords and len(w) > 2]
     freq = Counter(words)
     return dict(freq.most_common(top_n))
 
+
 def build_single_page_report(url: str, soup: BeautifulSoup, response_status: int) -> OrderedDict:
     report = OrderedDict()
     report["URL"] = url
     report["Status"] = response_status
+
     title = (soup.title.string or "").strip() if soup.title else "Not Found"
     report["Title"] = title
+
     desc = soup.find("meta", attrs={"name": "description"})
     meta_desc = desc.get("content", "").strip() if desc else "Not Found"
     report["Meta Description"] = meta_desc
+
     full_text = soup.get_text(" ", strip=True)
     total_words = len(full_text.split())
     report["Word Count"] = total_words
     report["Top Keywords"] = extract_keywords(full_text)
     return report
+
 
 # --- Core SERP Analysis Function ---
 def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -> dict:
@@ -100,9 +112,11 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
 
     total_word_count = sum(r.get("Word Count", 0) for r in competitor_reports)
     avg_word_count = total_word_count // len(competitor_reports) if competitor_reports else 0
+
     all_keywords = Counter()
     for report in competitor_reports:
         all_keywords.update(report.get("Top Keywords", {}))
+
     benchmarks = {
         "average_word_count": avg_word_count,
         "common_keywords": dict(all_keywords.most_common(20)),
@@ -130,10 +144,12 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
         "competitor_benchmarks": benchmarks
     }
 
+
 # --- API Routes ---
 @app.route("/")
 def home():
-    return "✅ SERP SEO Analyzer API is running!"
+    return "✅ SERP SEO Analyzer API is running!", 200
+
 
 @app.route("/analyze-serp")
 def analyze_serp_endpoint():
@@ -166,5 +182,8 @@ def analyze_serp_endpoint():
         print("--- END OF ERROR ---")
         return jsonify({"success": False, "error": "An unexpected server error occurred. The issue has been logged."}), 500
 
+
+# ✅ Proper production entrypoint
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
