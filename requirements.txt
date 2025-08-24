@@ -3,4 +3,4 @@ flask-cors
 gunicorn
 requests
 beautifulsoup4
-gevent
+gevent>=21.12
