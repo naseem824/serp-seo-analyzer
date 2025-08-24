@@ -1,16 +1,12 @@
-# app.py
-
 import os
 import re
-import json
 import requests
-import traceback # Import traceback for detailed error logging
+import traceback
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse, urljoin, urlencode
+from urllib.parse import urlencode
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from collections import OrderedDict, Counter
-# spaCy has been removed to reduce memory usage
 
 # --- Basic Setup ---
 app = Flask(__name__)
@@ -18,13 +14,12 @@ CORS(app)
 
 # --- Constants ---
 REQUEST_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5.0 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
-REQUEST_TIMEOUT = 60 
+REQUEST_TIMEOUT = 60
 MAX_CONTENT_SIZE = 500000
 
-# --- Utility Functions (spaCy functions removed) ---
-
+# --- Utility Functions ---
 def clean_text(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9\s]", " ", text or "")
     return text.lower()
@@ -49,43 +44,50 @@ def build_single_page_report(url: str, soup: BeautifulSoup, response_status: int
     total_words = len(full_text.split())
     report["Word Count"] = total_words
     report["Top Keywords"] = extract_keywords(full_text)
-    # Semantic analysis has been removed
     return report
 
-# --- Core SERP Analysis Function for ScraperAPI ---
-
+# --- Core SERP Analysis Function ---
 def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -> dict:
     print(f"Fetching SERP for keyword: {keyword} using ScraperAPI")
-    
+
     google_search_url = "https://www.google.com/search?" + urlencode({'q': keyword})
     scraperapi_payload = {'api_key': scraperapi_key, 'url': google_search_url}
-    
-    response = requests.get("http://api.scraperapi.com", params=scraperapi_payload, timeout=REQUEST_TIMEOUT)
+
+    response = requests.get(
+        "https://api.scraperapi.com",
+        params=scraperapi_payload,
+        headers=REQUEST_HEADERS,
+        timeout=REQUEST_TIMEOUT
+    )
     response.raise_for_status()
-    
+
     soup = BeautifulSoup(response.text, "html.parser")
-    
+
     organic_results = []
     for result_div in soup.select("div.g, div.tF2Cxc"):
         link_tag = result_div.find("a")
         if link_tag and link_tag.get('href') and link_tag.get('href').startswith('http'):
-            organic_results.append({'link': link_tag.get('href')})
+            organic_results.append(link_tag.get('href'))
 
     if not organic_results:
         return {"error": "Could not parse organic results from Google HTML. The page structure might have changed."}
 
-    # *** THIS IS THE FIX ***
-    # Analyzing top 3 instead of 5 to further reduce workload and prevent timeouts.
-    competitor_urls = [res["link"] for res in organic_results[:3]]
+    competitor_urls = list(dict.fromkeys(organic_results[:3]))  # remove duplicates, keep order
     print(f"Found {len(competitor_urls)} competitors to analyze.")
     competitor_reports = []
 
     for url in competitor_urls:
-        if url == user_url: continue
+        if url == user_url:
+            continue
         try:
             print(f"Analyzing competitor: {url}")
             competitor_payload = {'api_key': scraperapi_key, 'url': url}
-            resp = requests.get("http://api.scraperapi.com", params=competitor_payload, timeout=REQUEST_TIMEOUT)
+            resp = requests.get(
+                "https://api.scraperapi.com",
+                params=competitor_payload,
+                headers=REQUEST_HEADERS,
+                timeout=REQUEST_TIMEOUT
+            )
             resp.raise_for_status()
             soup_comp = BeautifulSoup(resp.text[:MAX_CONTENT_SIZE], "html.parser")
             report = build_single_page_report(url, soup_comp, resp.status_code)
@@ -111,7 +113,12 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
     try:
         print(f"Analyzing user URL: {user_url}")
         user_payload = {'api_key': scraperapi_key, 'url': user_url}
-        resp = requests.get("http://api.scraperapi.com", params=user_payload, timeout=REQUEST_TIMEOUT)
+        resp = requests.get(
+            "https://api.scraperapi.com",
+            params=user_payload,
+            headers=REQUEST_HEADERS,
+            timeout=REQUEST_TIMEOUT
+        )
         resp.raise_for_status()
         soup_user = BeautifulSoup(resp.text[:MAX_CONTENT_SIZE], "html.parser")
         user_report = build_single_page_report(user_url, soup_user, resp.status_code)
@@ -123,8 +130,7 @@ def analyze_serp_competitors(keyword: str, user_url: str, scraperapi_key: str) -
         "competitor_benchmarks": benchmarks
     }
 
-# --- API Routes (with Improved Error Handling) ---
-
+# --- API Routes ---
 @app.route("/")
 def home():
     return "✅ SERP SEO Analyzer API is running!"
@@ -137,7 +143,7 @@ def analyze_serp_endpoint():
 
     if not keyword or not user_url:
         return jsonify({"success": False, "error": "Parameters 'keyword' and 'url' are required."}), 400
-    
+
     if not scraperapi_key:
         return jsonify({"success": False, "error": "Server is missing SCRAPERAPI_KEY configuration."}), 500
 
@@ -147,20 +153,18 @@ def analyze_serp_endpoint():
             print(f"Application error: {result['error']}")
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "data": result})
-    
+
     except requests.exceptions.Timeout:
         print("A request to ScraperAPI timed out.")
-        return jsonify({"success": False, "error": "The request timed out while trying to fetch data. The target site might be slow."}), 504
-        
+        return jsonify({"success": False, "error": "The request timed out while trying to fetch data."}), 504
+
     except Exception as e:
-        # Log the full error traceback for better debugging on Render
-        print(f"--- UNEXPECTED SERVER ERROR ---")
+        print("--- UNEXPECTED SERVER ERROR ---")
         print(f"Exception Type: {type(e).__name__}")
         print(f"Exception Details: {str(e)}")
         traceback.print_exc()
-        print(f"--- END OF ERROR ---")
+        print("--- END OF ERROR ---")
         return jsonify({"success": False, "error": "An unexpected server error occurred. The issue has been logged."}), 500
 
 if __name__ == "__main__":
-    # This part is for local testing and won't run on Render
     app.run(debug=True)
