@@ -1,30 +1,38 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
+import os
 
 app = Flask(__name__)
-CORS(app)
 
-@app.route("/")
-def home():
-    return jsonify({"message": "Flask app is running on Fly.io!"})
+# Get API key from environment variables
+SCRAPERAPI_KEY = os.getenv("SCRAPERAPI_KEY")
 
-@app.route("/scrape", methods=["POST"])
+@app.route("/scrape", methods=["GET"])
 def scrape():
+    url = request.args.get("url")
+
+    if not url:
+        return jsonify({"error": "Missing 'url' parameter"}), 400
+
+    if not SCRAPERAPI_KEY:
+        return jsonify({"error": "SCRAPERAPI_KEY is not set in environment"}), 500
+
     try:
-        data = request.get_json()
-        url = data.get("url")
+        # Use ScraperAPI endpoint
+        scraper_url = f"http://api.scraperapi.com?api_key={SCRAPERAPI_KEY}&url={url}"
 
-        if not url:
-            return jsonify({"error": "URL is required"}), 400
+        response = requests.get(scraper_url, timeout=15)
+        response.raise_for_status()
 
-        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        title = soup.title.string if soup.title else "No title found"
-        description = soup.find("meta", attrs={"name": "description"})
-        description = description["content"] if description else "No description found"
+        # Extract title and meta description
+        title = soup.title.string if soup.title else None
+        description = None
+        meta = soup.find("meta", attrs={"name": "description"})
+        if meta and "content" in meta.attrs:
+            description = meta["content"]
 
         return jsonify({
             "url": url,
@@ -32,8 +40,13 @@ def scrape():
             "description": description
         })
 
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/")
+def home():
+    return "✅ Scraper API is running! Use /scrape?url=https://example.com"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
