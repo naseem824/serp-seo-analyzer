@@ -13,9 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of your application's code into the container
 COPY . .
 
-# Expose the port that Gunicorn will run on. Railway will detect this.
-EXPOSE 8000
-
 # The command to run your application using Gunicorn, a production-ready server
-# We increase the timeout to 120 seconds to handle long-running analyses.
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "120", "app:app"]
+# This version correctly uses the $PORT variable provided by Railway.
+# We also keep the increased timeout to handle long-running analyses.
+CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--timeout", "120", "app:app"]
