@@ -183,6 +183,33 @@ def analyze_serp_endpoint():
         return jsonify({"success": False, "error": "An unexpected server error occurred. The issue has been logged."}), 500
 
 
+# ✅ NEW: Simple scrape route
+@app.route("/scrape")
+def scrape_url():
+    url = request.args.get("url", "").strip()
+    if not url:
+        return jsonify({"error": "Missing ?url= parameter"}), 400
+
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+
+        soup = BeautifulSoup(resp.text[:MAX_CONTENT_SIZE], "html.parser")
+        title = soup.title.string if soup.title else "No Title"
+        desc_tag = soup.find("meta", attrs={"name": "description"})
+        description = desc_tag["content"] if desc_tag and "content" in desc_tag.attrs else "No Description"
+
+        return jsonify({
+            "url": url,
+            "title": title,
+            "description": description
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ✅ Production entrypoint (Fly.io will use Gunicorn in Dockerfile)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
