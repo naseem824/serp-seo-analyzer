@@ -1,10 +1,21 @@
 #!/bin/bash
-# Exit immediately if a command exits with a non-zero status.
+# Exit immediately if a command exits with a non-zero status
 set -e
 
-# Print the port the app will run on for debugging purposes
-echo "STARTING SERVER ON PORT: $PORT"
+# Ensure PORT is set (Railway automatically provides it)
+if [ -z "$PORT" ]; then
+  echo "Error: PORT is not set."
+  exit 1
+fi
 
-# Start the Gunicorn server
-# This command is more robust for production environments
-exec gunicorn --worker-class gevent --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT app:app
+# Print debug info
+echo "🚀 Starting Flask app with Gunicorn on port: $PORT"
+
+# Start Gunicorn server
+exec gunicorn \
+  --worker-class gevent \
+  --workers 1 \
+  --threads 8 \
+  --timeout 120 \
+  --bind 0.0.0.0:$PORT \
+  app:app
