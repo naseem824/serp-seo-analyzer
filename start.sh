@@ -13,7 +13,6 @@ echo "🚀 Starting Flask app with Gunicorn on port: $PORT"
 
 # Start Gunicorn server
 exec gunicorn \
-  --worker-class gevent \
   --workers 1 \
   --threads 8 \
   --timeout 120 \
