@@ -14,6 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # The command to run your application using Gunicorn, a production-ready server
-# This version correctly uses the $PORT variable provided by Railway.
+# This "shell" form of CMD correctly interprets the $PORT variable from Railway.
 # We also keep the increased timeout to handle long-running analyses.
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "--timeout", "120", "app:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT --timeout 120 app:app
